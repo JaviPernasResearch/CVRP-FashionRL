@@ -116,48 +116,114 @@ class Solution:
         """Save solution to CSV and details to text file"""
         import pandas as pd
         
-        # Get current date and time for traceability
+        result_folder = self.get_result_folder()  
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        method_name = self.instance.get('method_name', 'Unknown Method')
-        
-        # Create a folder for results with timestamp
-        result_folder = f"results_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-        os.makedirs(result_folder, exist_ok=True)
-        
+
         # Update file paths to use the results folder
         csv_path = os.path.join(result_folder, csv_file)
         details_path = os.path.join(result_folder, details_file)
-        
+
         # Save solution to CSV
         solution_df = pd.DataFrame(self.active_arcs, columns=['from', 'to'])
         solution_df.to_csv(csv_path, index=False)
         
         # Save route details to text file
-        with open(details_path, 'w') as f:
+        with open(details_path, 'w', encoding='utf-8') as f:
             f.write("FASHION REVERSE LOGISTICS SOLUTION ANALYSIS\n")
             f.write("=========================================\n")
-            f.write(f"Solver: {method_name}\n")
-            f.write(f"Generated on: {timestamp}\n")
+            f.write(f"Solver: {self.instance.get('method_name', 'Unknown Method')}\n")
+            f.write(f"Generated on: {timestamp} \n")
             f.write(f"Problem size: {len(self.instance['N'])} shops\n")
             f.write(f"Vehicle capacity: {self.instance['Q']} units\n\n")
             
             f.write(f"Number of routes: {self.metrics['num_routes']}\n")
             f.write(f"Total distance: {self.metrics['total_distance']:.2f} units\n\n")
+
+            # Calculate and print emissions if requested
+            emissions_info = self.calculate_emissions()
+            f.write(f"Estimated CO2 emissions: {emissions_info['total_emissions']:.2f} kg")
+
+            # Show detailed emissions info if solution was emissions-optimized
+            if self.instance.get('emissions_optimized', False):
+                f.write(f"Emissions parameters: \u03B1={emissions_info['alpha']} kg/km, \u03B2={emissions_info['beta']} kg/km/kg")
             
             for route_data in self.metrics['routes']:
                 route = route_data['sequence']
+                route_id = route_data['route_id']
                 
-                f.write(f"Route {route_data['route_id']}:\n")
-                f.write(f"  Sequence: {' -> '.join(map(str, route))}\n")
-                f.write(f"  Distance: {route_data['distance']:.2f} units\n")
-                f.write(f"  Load: {route_data['load']} / {route_data['capacity']} units\n")
-                f.write(f"  Shops visited: {route_data['num_shops']}\n\n")
+                f.write(f"\nRoute {route_id}:")
+                f.write(f"  Sequence: {' -> '.join(map(str, route))}")
+                f.write(f"  Distance: {route_data['distance']:.2f} units")
+                f.write(f"  Load: {route_data['load']} / {route_data['capacity']} units")
+                f.write(f"  Shops visited: {route_data['num_shops']}")
+
+                # Add emissions info if available
+                if emissions_info['route_emissions'] and route_id in emissions_info['route_emissions']:
+                    f.write(f"  CO2 emissions: {emissions_info['route_emissions'][route_id]:.2f} kg")
         
         print(f"\nSolution saved to '{csv_path}'")
         print(f"Solution details saved to '{details_path}'")
         
         # Return the folder name for later reference
         return result_folder
+    
+    def calculate_emissions(self, alpha=0.15, beta=0.02):
+        """
+        Calculate CO2 emissions for the solution.
+        
+        Parameters:
+        ----------
+        alpha : float
+            Base CO2 per km (kg/km)
+        beta : float
+            Load-dependent emission factor (kg/km/kg)
+        
+        Returns:
+        -------
+        dict
+            Dictionary with emissions metrics
+        """
+        # Use instance-specific emission parameters if available
+        alpha = self.instance.get('alpha', alpha)
+        beta = self.instance.get('beta', beta)
+        
+        # Get problem parameters
+        c = self.instance['c']  # Cost/distance matrix
+        q = self.instance['q']  # Demand
+        
+        route_emissions = {}
+        total_emissions = 0
+        
+        for route_id, route in self.routes.items():
+            current_load = 0
+            route_emission = 0
+            
+            for i in range(len(route)-1):
+                from_node = route[i]
+                to_node = route[i+1]
+                
+                # Distance between nodes
+                distance = c[(from_node, to_node)]
+                
+                # If not at depot, add load from this node
+                # For reverse logistics, we pick up at each node
+                if from_node != 0:
+                    current_load += q.get(from_node, 0)
+                
+                # Calculate emissions for this segment
+                # Base emissions + load-dependent emissions
+                segment_emissions = distance * (alpha + beta * current_load)
+                route_emission += segment_emissions
+            
+            route_emissions[route_id] = route_emission
+            total_emissions += route_emission
+        
+        return {
+            'total_emissions': total_emissions,
+            'route_emissions': route_emissions,
+            'alpha': alpha,
+            'beta': beta
+        }
     
     def print_summary(self):
         """Print a summary of the solution"""
@@ -174,14 +240,27 @@ class Solution:
         print(f"Number of routes: {self.metrics['num_routes']}")
         print(f"Total distance: {self.metrics['total_distance']:.2f} units")
         
+        # Calculate and print emissions if requested
+        emissions_info = self.calculate_emissions()
+        print(f"Estimated CO2 emissions: {emissions_info['total_emissions']:.2f} kg")
+        
+        # Show detailed emissions info if solution was emissions-optimized
+        if self.instance.get('emissions_optimized', False):
+            print(f"Emissions parameters: α={emissions_info['alpha']} kg/km, β={emissions_info['beta']} kg/km/kg")
+        
         for route_data in self.metrics['routes']:
             route = route_data['sequence']
+            route_id = route_data['route_id']
             
-            print(f"\nRoute {route_data['route_id']}:")
+            print(f"\nRoute {route_id}:")
             print(f"  Sequence: {' -> '.join(map(str, route))}")
             print(f"  Distance: {route_data['distance']:.2f} units")
             print(f"  Load: {route_data['load']} / {route_data['capacity']} units")
             print(f"  Shops visited: {route_data['num_shops']}")
+            
+            # Add emissions info if available
+            if emissions_info['route_emissions'] and route_id in emissions_info['route_emissions']:
+                print(f"  CO2 emissions: {emissions_info['route_emissions'][route_id]:.2f} kg")
     
     def visualize(self, output_file=None):
         """
@@ -258,7 +337,7 @@ class Solution:
         if output_file:
             # If output_file contains no directory, use a results folder
             if not os.path.dirname(output_file):
-                result_folder = f"results_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+                result_folder = self.get_result_folder()  
                 os.makedirs(result_folder, exist_ok=True)
                 output_file = os.path.join(result_folder, output_file)
             
@@ -266,3 +345,22 @@ class Solution:
             print(f"Route visualization saved to '{output_file}'")
         
         plt.close()
+    
+    def get_result_folder(self):
+        """
+        Get the results folder path for saving solution files.
+        
+        Returns:
+        -------
+        str
+            Path to the results folder
+        """
+        # Get current date and time for traceability
+        timestamp = datetime.now().strftime("%Y%m%d")
+        method_name = self.instance.get('method_name', 'Unknown Method')
+
+        # Create a folder for results with timestamp
+        result_folder = f"results\\results_{timestamp}_{method_name}"
+        os.makedirs(result_folder, exist_ok=True)
+
+        return result_folder

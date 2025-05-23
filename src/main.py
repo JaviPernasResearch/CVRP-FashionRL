@@ -19,9 +19,12 @@ def main():
     parser.add_argument('--seed', type=int, default=42, help='Random seed')
     parser.add_argument('--time-limit', type=int, default=30, help='Solver time limit in seconds (default: 30)')
     parser.add_argument('--create-samples', action='store_true', help='Create sample instances')
-    parser.add_argument('--method', type=str, choices=['exact', 'heuristic', 'ortools'], default='exact',
-                       help='Solution method: exact (Gurobi), heuristic (ILS), or ortools (CP)')
+    parser.add_argument('--method', type=str, choices=['exact', 'heuristic', 'ortools', 'ortools_emissions'], 
+                        default='exact',
+                        help='Solution method: exact (Gurobi), heuristic (ILS), ortools (CP), ortools_emissions (CP with CO2 objective)')
     parser.add_argument('--iterations', type=int, default=100, help='Max iterations for heuristic method')
+    parser.add_argument('--alpha', type=float, default=0.15, help='Base CO₂ per km (kg/km)')
+    parser.add_argument('--beta', type=float, default=0.02, help='Load-dependent emission factor (kg/km/kg)')
     args = parser.parse_args()
     
     # Create sample instances if requested

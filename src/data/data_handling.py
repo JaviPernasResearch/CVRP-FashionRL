@@ -13,15 +13,21 @@ def load_problem_instance(file_path):
     
     Returns:
     -----
-        dict, keys = N, V, A, c, Q, q, x_coords, y_coords
+        dict, keys = N, V, A, c, Q, q, x_coords, y_coords, alpha, beta
     '''
     try:
         # Read locations data
         locations_df = pd.read_csv(file_path)
         
-        # Extract capacity from metadata
+        # Extract capacity and emissions parameters from metadata
+        meta_params = {}
         with open(file_path.replace('.csv', '_meta.txt'), 'r') as f:
-            vehicle_capacity = int(f.readline().strip().split('=')[1])
+            for line in f:
+                if '=' in line:
+                    key, value = line.strip().split('=')
+                    meta_params[key] = float(value)
+        
+        vehicle_capacity = int(meta_params.get('capacity', 10))
         
         # Process locations data
         n_shops = len(locations_df) - 1  # Excluding depot
@@ -47,7 +53,7 @@ def load_problem_instance(file_path):
         c = {(i, j): np.hypot(x_coords[i]-x_coords[j], y_coords[i]-y_coords[j]) 
              for i, j in A}
         
-        return {
+        result = {
             'x_coords': x_coords, 
             'y_coords': y_coords,
             'N': N,
@@ -57,6 +63,14 @@ def load_problem_instance(file_path):
             'Q': vehicle_capacity, 
             'q': demands
         }
+        
+        # Add emissions parameters if available
+        if 'alpha' in meta_params:
+            result['alpha'] = meta_params['alpha']
+        if 'beta' in meta_params:
+            result['beta'] = meta_params['beta']
+            
+        return result
     
     except Exception as e:
         raise Exception(f"Error loading problem instance: {str(e)}")
@@ -114,6 +128,29 @@ def create_random_problem_instance(n_shops, vehicle_capacity, random_state=None)
     }
 
 
+def add_emissions_parameters(instance, alpha=0.15, beta=0.02):
+    """
+    Add emissions parameters to an instance.
+    
+    Parameters:
+    ----------
+    instance : dict
+        The problem instance to modify
+    alpha : float
+        Base CO2 per km (kg/km)
+    beta : float
+        Load-dependent emission factor (kg/km/kg)
+    
+    Returns:
+    -------
+    dict
+        The modified instance with emissions parameters
+    """
+    instance['alpha'] = alpha
+    instance['beta'] = beta
+    return instance
+
+
 def save_problem_instance(instance, output_path):
     '''
     Save a problem instance to a CSV file
@@ -143,6 +180,12 @@ def save_problem_instance(instance, output_path):
         with open(output_path.replace('.csv', '_meta.txt'), 'w') as f:
             f.write(f"capacity={instance['Q']}\n")
             
+            # Add emissions parameters if they exist
+            if 'alpha' in instance:
+                f.write(f"alpha={instance['alpha']}\n")
+            if 'beta' in instance:
+                f.write(f"beta={instance['beta']}\n")
+            
         print(f"Problem instance saved to {output_path}")
         
     except Exception as e:
@@ -158,14 +201,17 @@ def create_sample_instances():
     
     # Small instance (10 shops)
     small_instance = create_random_problem_instance(n_shops=10, vehicle_capacity=10, random_state=42)
+    add_emissions_parameters(small_instance)  # Add default emissions parameters
     save_problem_instance(small_instance, 'instances/small_instance.csv')
     
     # Medium instance (20 shops)
     medium_instance = create_random_problem_instance(n_shops=20, vehicle_capacity=15, random_state=43)
+    add_emissions_parameters(medium_instance, alpha=0.18, beta=0.025)  # Different parameters
     save_problem_instance(medium_instance, 'instances/medium_instance.csv')
     
     # Large instance (50 shops)
     large_instance = create_random_problem_instance(n_shops=50, vehicle_capacity=20, random_state=44)
+    add_emissions_parameters(large_instance, alpha=0.2, beta=0.03)  # Different parameters 
     save_problem_instance(large_instance, 'instances/large_instance.csv')
     
     print("Sample instances created in 'instances' directory")

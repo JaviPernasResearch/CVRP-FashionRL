@@ -179,6 +179,15 @@ class SolverFrame:
             command=self._toggle_options
         ).pack(side="left", padx=5)
         
+        # Add new radio button for emissions-aware optimization
+        ttk.Radiobutton(
+            method_frame, 
+            text="CP-Emissions", 
+            variable=self.method_var, 
+            value="ortools_emissions",
+            command=self._toggle_options
+        ).pack(side="left", padx=5)
+        
         # Time limit variable
         self.time_limit_var = tk.StringVar(value="30")
         
@@ -194,15 +203,43 @@ class SolverFrame:
         ttk.Label(self.heuristic_frame, text="Max iterations:").pack(side="left", padx=5)
         ttk.Entry(self.heuristic_frame, textvariable=self.iterations_var, width=10).pack(side="left", padx=5)
         
+        # Emissions parameters
+        self.alpha_var = tk.StringVar(value="0.15")
+        self.beta_var = tk.StringVar(value="0.02")
+        self.emissions_frame = ttk.Frame(self.frame)
+        
+        # Alpha parameter (base CO2 per km)
+        alpha_frame = ttk.Frame(self.emissions_frame)
+        alpha_frame.pack(fill="x", pady=2)
+        ttk.Label(alpha_frame, text="Base CO₂ per km (α):").pack(side="left", padx=5)
+        ttk.Entry(alpha_frame, textvariable=self.alpha_var, width=10).pack(side="left", padx=5)
+        ttk.Label(alpha_frame, text="kg/km").pack(side="left")
+        
+        # Beta parameter (load-dependent factor)
+        beta_frame = ttk.Frame(self.emissions_frame)
+        beta_frame.pack(fill="x", pady=2)
+        ttk.Label(beta_frame, text="Load factor (β):").pack(side="left", padx=5)
+        ttk.Entry(beta_frame, textvariable=self.beta_var, width=10).pack(side="left", padx=5)
+        ttk.Label(beta_frame, text="kg/km/kg").pack(side="left")
+        
         # Initialize visibility based on selected method
         self._toggle_options()
     
     def _toggle_options(self):
         """Show/hide options based on selected method"""
-        if self.method_var.get() == "heuristic":
+        method = self.method_var.get()
+        
+        # Handle heuristic-specific options
+        if method == "heuristic":
             self.heuristic_frame.pack(fill="x", pady=5)
         else:
             self.heuristic_frame.pack_forget()
+        
+        # Handle emissions-specific options
+        if method == "ortools_emissions":
+            self.emissions_frame.pack(fill="x", pady=5)
+        else:
+            self.emissions_frame.pack_forget()
     
     def get_parameters(self):
         """Returns the solver parameters"""
@@ -215,12 +252,18 @@ class SolverFrame:
                 'time_limit': time_limit
             }
             
+            # Add method-specific parameters
             if method == "heuristic":
                 params['iterations'] = int(self.iterations_var.get())
             
+            # Add emissions parameters for all methods
+            # (they're useful even for non-emissions optimization for reporting)
+            params['alpha'] = float(self.alpha_var.get())
+            params['beta'] = float(self.beta_var.get())
+            
             return params
         except ValueError:
-            raise ValueError("All numerical inputs must be valid integers")
+            raise ValueError("All numerical inputs must be valid integers or floats")
 
 
 class StatusFrame:
@@ -368,6 +411,12 @@ class SolverGUI:
         method = params['method']
         time_limit = params['time_limit']
         
+        # Add emissions parameters to instance if provided
+        if 'alpha' in params:
+            instance['alpha'] = params['alpha']
+        if 'beta' in params:
+            instance['beta'] = params['beta']
+        
         # Create and configure model
         print(f"Creating {method} model...")
         self.current_model = create_model(method, instance)
@@ -383,14 +432,19 @@ class SolverGUI:
         self.stop_button.config(state="normal")
         
         # Start solving in background thread
-        print(f"\nSolving using {method} approach...")
+        if method == 'ortools_emissions':
+            print(f"\nSolving using {method} approach with emissions parameters:")
+            print(f"  α = {instance.get('alpha', 0.15)} kg/km, β = {instance.get('beta', 0.02)} kg/km/kg")
+        else:
+            print(f"\nSolving using {method} approach...")
+        
         start_time = time.time()
         
         def on_solve_complete(solution_obj):
             elapsed_time = time.time() - start_time
             print(f"\nSolution completed in {elapsed_time:.2f} seconds")
             
-            # Process solution (no need to pass instance)
+            # Process solution
             self._process_solution(solution_obj)
             
             # Re-enable run button and disable stop button
@@ -408,6 +462,12 @@ class SolverGUI:
             
             # Print solution details
             solution_obj.print_summary()
+            
+            # Calculate and display emissions if not already done
+            emissions_info = solution_obj.calculate_emissions()
+            if not solution_obj.instance.get('emissions_optimized', False):
+                print(f"\nEstimated CO2 Emissions: {emissions_info['total_emissions']:.2f} kg")
+                print(f"Using parameters: α={emissions_info['alpha']} kg/km, β={emissions_info['beta']} kg/km/kg")
             
             # Save solution files
             solution_obj.save_solution_files()

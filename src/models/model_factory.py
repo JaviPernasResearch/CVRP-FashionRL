@@ -1,5 +1,6 @@
+from src.models.ortools_emissions_model import ORToolsEmissionsModel
 from src.models.gurobi_model import GurobiModel
-from localSearch_model import localSearch_model
+from src.models.localSearch_model import localSearch_model
 from src.models.ortools_model import ORToolsModel
 
 def create_model(model_type, instance=None):
@@ -10,8 +11,8 @@ def create_model(model_type, instance=None):
     ----------
     model_type : str
         Type of model to create ('exact', 'heuristic', 'ortools')
-    instance : dict
-        Problem instance data
+    instance : dict, optional
+        The problem instance data
         
     Returns:
     -------
@@ -41,6 +42,8 @@ def create_model(model_type, instance=None):
         except ImportError:
             print("OR-Tools not available. Falling back to heuristic method.")
             return localSearch_model(instance)
+    elif model_type.lower() == 'ortools_emissions':
+        return ORToolsEmissionsModel(instance)
     
     else:
         raise ValueError(f"Unknown model type: {model_type}")

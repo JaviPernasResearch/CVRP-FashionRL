@@ -15,6 +15,12 @@ def run_cli(args):
         instance = create_random_problem_instance(args.shops, args.capacity, args.seed)
         print(f"Created random problem instance with {args.shops} shops")
     
+    # Add emissions parameters to instance if provided
+    if hasattr(args, 'alpha'):
+        instance['alpha'] = args.alpha
+    if hasattr(args, 'beta'):
+        instance['beta'] = args.beta
+        
     # Solve the instance
     solution = solve_cvrp(
         instance, 
