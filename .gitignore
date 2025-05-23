@@ -1,0 +1,82 @@
+# Python bytecode and cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv/
+.env/
+env.bak/
+venv.bak/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+.project
+.pydevproject
+.settings/
+.classpath
+
+# Gurobi license and log files
+gurobi.log
+*.lic
+
+# Solution outputs and results
+results_*/
+reverse_logistics_solution.png
+reverse_logistics_solution.csv
+solution_details.txt
+
+# OS specific files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Temporary files
+*.tmp
+*.bak
+*.log
+tmp/
+temp/
+
+# Test coverage
+.coverage
+htmlcov/
+coverage.xml
+.pytest_cache/
+
+# Documentation build
+docs/_build/
+docs/api/
+
+# Data files (optionally exclude large data files)
+# data/
+# examples/large_*.json
+
+# VSCode workspace files
+*.code-workspace
