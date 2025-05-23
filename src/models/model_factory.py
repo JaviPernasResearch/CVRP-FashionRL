@@ -1,5 +1,5 @@
 from src.models.gurobi_model import GurobiModel
-from src.models.heuristic_model import HeuristicModel
+from localSearch_model import localSearch_model
 from src.models.ortools_model import ORToolsModel
 
 def create_model(model_type, instance=None):
@@ -30,17 +30,17 @@ def create_model(model_type, instance=None):
             print("Gurobi not available. Falling back to heuristic method.")
             if instance:
                 instance['method_name'] = 'Heuristic (fallback)'
-            return HeuristicModel(instance)
+            return localSearch_model(instance)
     
     elif model_type.lower() == 'heuristic':
-        return HeuristicModel(instance)
+        return localSearch_model(instance)
     
     elif model_type.lower() == 'ortools':
         try:
             return ORToolsModel(instance)
         except ImportError:
             print("OR-Tools not available. Falling back to heuristic method.")
-            return HeuristicModel(instance)
+            return localSearch_model(instance)
     
     else:
         raise ValueError(f"Unknown model type: {model_type}")

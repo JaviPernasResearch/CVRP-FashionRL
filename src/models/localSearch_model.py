@@ -3,7 +3,7 @@ import numpy as np
 from numpy.random import RandomState
 from src.models.base_model import CVRPModel
 
-class HeuristicModel(CVRPModel):
+class localSearch_model(CVRPModel):
     """CVRP solver implementation using Iterated Local Search heuristic"""
     
     def __init__(self, instance=None):
